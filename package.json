@@ -1,0 +1,21 @@
+{
+  "name": "equibridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Multi-supplier industrial catalog normalization, blind dropshipping & LTL freight platform",
+  "scripts": {
+    "install:all": "cd backend && npm install && cd ../freight && npm install && cd ../frontend && npm install",
+    "build:backend": "cd backend && npm run build",
+    "build:freight": "cd freight && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "build:all": "npm run build:backend && npm run build:freight && npm run build:frontend",
+    "test:frontend": "cd frontend && npx vitest run",
+    "test:all": "npm run test:frontend",
+    "start": "cd frontend && npm start",
+    "db:generate": "cd frontend && npx prisma generate",
+    "db:migrate": "cd frontend && npx prisma migrate deploy"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

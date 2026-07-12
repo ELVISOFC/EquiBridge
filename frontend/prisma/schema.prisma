@@ -1,0 +1,267 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum SupplierType {
+  API
+  FTP_CSV
+  MANUAL
+}
+
+enum OrderStatus {
+  PENDING
+  RESERVED
+  FULFILLED
+  CANCELLED
+}
+
+enum AttributeDataType {
+  NUMERIC
+  STRING
+}
+
+// ---------------------------------------------------------------------------
+// Manufacturers
+// ---------------------------------------------------------------------------
+
+model Manufacturer {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  website   String?
+
+  products  Product[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Categories — hierarchical self-referencing structure
+// ---------------------------------------------------------------------------
+
+model Category {
+  id          String     @id @default(uuid())
+  name        String
+  slug        String     @unique           // URL-safe unique slug
+  parentId    String?
+  parent      Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryTree")
+
+  products    Product[]
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([parentId])
+}
+
+// ---------------------------------------------------------------------------
+// Products — canonical product records, decoupled from suppliers
+// ---------------------------------------------------------------------------
+
+model Product {
+  id                String              @id @default(uuid())
+  mpn               String              // Manufacturer Part Number
+  gtin              String?             // Global Trade Item Number (UPC/EAN)
+  manufacturerId    String?
+  manufacturer      Manufacturer?       @relation(fields: [manufacturerId], references: [id])
+  globalCategoryId  String?
+  globalCategory    Category?           @relation(fields: [globalCategoryId], references: [id])
+  title             String
+  description       String?
+
+  // Relations
+  supplierListings  SupplierListing[]
+  productAttributes ProductAttributes?
+  orderItems        OrderItem[]
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@unique([mpn, manufacturerId])
+  @@index([mpn])
+  @@index([gtin])
+}
+
+// ---------------------------------------------------------------------------
+// Supplier Listings — replaces the old SupplierSku, decouples from Product
+// ---------------------------------------------------------------------------
+
+model SupplierListing {
+  id            String    @id @default(uuid())
+  productId     String
+  product       Product   @relation(fields: [productId], references: [id])
+  supplierId    String
+  supplier      Supplier  @relation(fields: [supplierId], references: [id])
+  supplierSku   String
+  rawPayload    Json?     // Original unnormalized data for audit trail
+  isActive      Boolean   @default(true)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([supplierId, supplierSku])
+  @@index([productId])
+  @@index([supplierId])
+  @@index([isActive])
+}
+
+// ---------------------------------------------------------------------------
+// Product Attributes — normalized typed attributes stored in JSONB
+// ---------------------------------------------------------------------------
+
+model ProductAttributes {
+  productId             String  @id
+  product               Product @relation(fields: [productId], references: [id])
+  normalizedAttributes  Json    // JSONB: typed key-value pairs, e.g. {"operating_pressure": 217.55}
+  attributeUnits        Json?   // JSONB: e.g. {"operating_pressure": "psi"}
+
+  updatedAt             DateTime @updatedAt
+  createdAt             DateTime @default(now())
+
+  @@index([normalizedAttributes], type: Gin)
+}
+
+// ---------------------------------------------------------------------------
+// Taxonomy Attributes — global unit normalization registry
+// ---------------------------------------------------------------------------
+
+model TaxonomyAttribute {
+  attributeKey    String            @id
+  expectedDataType AttributeDataType
+  allowedUnits    Json              // JSONB array: ["psi", "bar", "kPa"]
+  baseUnit        String            // e.g. "psi"
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Suppliers (unchanged from existing schema)
+// ---------------------------------------------------------------------------
+
+model Supplier {
+  id                    String                 @id @default(uuid())
+  name                  String
+  type                  SupplierType
+  config                Json?                  // API credentials, FTP details, etc.
+  supplierListings      SupplierListing[]
+  attributeMaps         SupplierAttributeMap[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Supplier Attribute Maps — mapping rules for supplier data transformation
+// ---------------------------------------------------------------------------
+
+model SupplierAttributeMap {
+  id                    String                 @id @default(uuid())
+  supplierId            String
+  supplier              Supplier               @relation(fields: [supplierId], references: [id])
+  sourceAttribute       String                 // Attribute name in supplier system
+  targetAttribute       String                 // Our canonical attribute name
+  transformationRule    String?                // Optional rule or expression
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  @@index([supplierId])
+}
+
+// ---------------------------------------------------------------------------
+// Inventory Snapshots — time-series tracking (unchanged)
+// ---------------------------------------------------------------------------
+
+model InventorySnapshot {
+  id                String           @id @default(uuid())
+  supplierListingId String
+  supplierListing   SupplierListing  @relation(fields: [supplierListingId], references: [id])
+  count             Int
+  price             Decimal          @db.Decimal(10, 2)
+  timestamp         DateTime         @default(now())
+
+  @@index([supplierListingId, timestamp])
+}
+
+// ---------------------------------------------------------------------------
+// Sellers — multi-tenant storefronts (unchanged)
+// ---------------------------------------------------------------------------
+
+model Seller {
+  id                    String                 @id @default(uuid())
+  name                  String
+  shopifyStoreUrl       String?
+  amazonSellerId        String?
+  brandingConfig        Json?                  // Branding details for blind dropshipping
+  orders                Order[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Orders (unchanged)
+// ---------------------------------------------------------------------------
+
+model Order {
+  id                    String                 @id @default(uuid())
+  sellerId              String
+  seller                Seller                 @relation(fields: [sellerId], references: [id])
+  externalOrderId       String?                // Shopify/Amazon Order ID
+  status                OrderStatus            @default(PENDING)
+  totalAmount           Decimal                @db.Decimal(10, 2)
+
+  shippingAddress       Json
+  billingAddress        Json
+
+  brandingSnapshot      Json?                  // Blind dropshipping context at time of order
+  fulfillmentResult     Json?                  // LTL quote + document URLs from fulfillment pipeline
+
+  items                 OrderItem[]
+  warrantyPassport      WarrantyPassport?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  @@index([sellerId])
+  @@index([status])
+  @@index([externalOrderId])
+}
+
+// ---------------------------------------------------------------------------
+// Order Items (unchanged)
+// ---------------------------------------------------------------------------
+
+model OrderItem {
+  id                    String                 @id @default(uuid())
+  orderId               String
+  order                 Order                  @relation(fields: [orderId], references: [id])
+  productId             String
+  product               Product                @relation(fields: [productId], references: [id])
+  quantity              Int
+  unitPrice             Decimal                @db.Decimal(10, 2)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  @@index([orderId])
+}
+
+// ---------------------------------------------------------------------------
+// Warranty Passports (unchanged)
+// ---------------------------------------------------------------------------
+
+model WarrantyPassport {
+  id                    String                 @id @default(uuid())
+  orderId               String                 @unique
+  order                 Order                  @relation(fields: [orderId], references: [id])
+  certificateUrl        String?
+  issuedAt              DateTime               @default(now())
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+}

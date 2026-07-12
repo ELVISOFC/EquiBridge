@@ -1,0 +1,39 @@
+{
+  "name": "equibridge-integrations",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "ts-node src/server.ts",
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "prisma": "^7.8.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  },
+  "dependencies": {
+    "@elastic/elasticsearch": "^9.4.2",
+    "@graphql-tools/schema": "^10.0.33",
+    "@prisma/client": "^7.8.0",
+    "@types/body-parser": "^1.19.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "apollo-server-express": "^3.13.0",
+    "body-parser": "^2.3.0",
+    "bullmq": "^5.79.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "graphql": "^16.14.2",
+    "graphql-tools": "^9.0.28",
+    "ioredis": "^5.11.1"
+  }
+}

@@ -1,0 +1,44 @@
+scalar JSON
+
+type Product {
+  id: ID!
+  name: String!
+  description: String
+  category: String
+  specifications: JSON
+  certifications: JSON
+  createdAt: String!
+  updatedAt: String!
+}
+
+type SellerListing {
+  id: ID!
+  productId: ID!
+  product: Product!
+  sellerId: ID!
+  markupPercentage: Float
+  price: Float!
+  inventoryCount: Int!
+  isPublished: Boolean!
+  curatedName: String
+  curatedDescription: String
+  createdAt: String!
+  updatedAt: String!
+}
+
+type Query {
+  getSellerListings(sellerId: ID!, limit: Int, offset: Int): [SellerListing!]!
+  getListing(id: ID!): SellerListing
+}
+
+type Mutation {
+  createListing(productId: ID!, sellerId: ID!, markupPercentage: Float): SellerListing!
+  updateListing(
+    id: ID!
+    markupPercentage: Float
+    isPublished: Boolean
+    curatedName: String
+    curatedDescription: String
+  ): SellerListing!
+  deleteListing(id: ID!): Boolean!
+}
